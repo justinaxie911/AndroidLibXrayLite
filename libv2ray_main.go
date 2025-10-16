@@ -14,21 +14,22 @@ import (
 	"sync"
 	"time"
 
-	coreapplog "github.com/xtls/xray-core/app/log"
-	corecommlog "github.com/xtls/xray-core/common/log"
-	corenet "github.com/xtls/xray-core/common/net"
-	corefilesystem "github.com/xtls/xray-core/common/platform/filesystem"
-	"github.com/xtls/xray-core/common/serial"
-	core "github.com/xtls/xray-core/core"
-	corestats "github.com/xtls/xray-core/features/stats"
-	coreserial "github.com/xtls/xray-core/infra/conf/serial"
-	_ "github.com/xtls/xray-core/main/distro/all"
 	mobasset "golang.org/x/mobile/asset"
+
+	v2net "github.com/xtls/xray-core/common/net"
+	v2filesystem "github.com/xtls/xray-core/common/platform/filesystem"
+	v2core "github.com/xtls/xray-core/core"
+	v2stats "github.com/xtls/xray-core/features/stats"
+	v2serial "github.com/xtls/xray-core/infra/conf/serial"
+	_ "github.com/xtls/xray-core/main/distro/all"
+	v2internet "github.com/xtls/xray-core/transport/internet"
+
+	v2applog "github.com/xtls/xray-core/app/log"
+	v2commlog "github.com/xtls/xray-core/common/log"
 )
 
 const (
-	coreAsset   = "xray.location.asset"
-	coreCert    = "xray.location.cert"
+	v2Asset     = "xray.location.asset"
 	xudpBaseKey = "xray.xudp.basekey"
 )
 
@@ -246,10 +247,9 @@ func NewV2RayPoint(s V2RayVPNServiceSupportsSet, adns bool) *V2RayPoint {
 CheckVersionX string
 This func will return libv2ray binding version and V2Ray version used.
 */
-
 func CheckVersionX() string {
-	var version = 31
-	return fmt.Sprintf("Lib: v%s", core.Version())
+	var version = 27
+	return fmt.Sprintf("Lib v%d, Xray-core v%s dev7 customized", version, v2core.Version())
 }
 
 func measureInstDelay(ctx context.Context, inst *v2core.Instance, url string) (int64, error) {

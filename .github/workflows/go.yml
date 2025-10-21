@@ -1,57 +1,76 @@
-name: Build
+name: Build & Release AndroidLibXrayLite (16KB Page Size + Latest NDK)
 
 on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      release_tag:
-        required: true
-        type: string
+
 jobs:
   build:
+    name: Build AndroidLibXrayLite AAR
     runs-on: ubuntu-latest
+
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
 
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Setup Golang
+        uses: actions/setup-go@v5.4.0
+        with:
+          go-version-file: 'go.mod'
 
-      
-    - name: Setup Golang
-      uses: actions/setup-go@v4
-      with:
-        go-version-file: 'go.mod'
-      
-    - name: Setup JDK
-      uses: actions/setup-java@v4
-      with:
-        java-version: 17
-        distribution: 'temurin'
-        
-    - name: Setup Android SDK Tools
-      uses: android-actions/setup-android@v3.2.0
-      with:
-        cmdline-tools-version: 10406996
-        
-    - name: Setup Android NDK
-      uses: nttld/setup-ndk@v1.4.2
-      with:
-        ndk-version: 'r28b'
-        link-to-sdk: true
-    - name: Setup Go Mobile
-      run: |
-        go install golang.org/x/mobile/cmd/gomobile@latest
-        export PATH=$PATH:~/go/bin
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          export PATH=$PATH:~/go/bin
 
-    - name: Build
-      run: |
-         mkdir -p assets data
-         bash gen_assets.sh download
-         cp -v data/*.dat assets/
-         gomobile init
-         go mod tidy
-         gomobile bind -v -androidapi 21 -ldflags='-s -w' ./
-    - name: Upload AndroidLibXrayLite to release
-      uses: svenstaro/upload-release-action@v2
-      with:
-        file: ./libv2ray*r
-        tag: ${{ github.event.inputs.release_tag }}
-        file_glob: true
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3.2.0
+        with:
+           log-accepted-android-sdk-licenses: false
+           cmdline-tools-version: '12266719'
+           packages: 'platforms;android-35 build-tools;35.0.0 platform-tools'
+
+      - name: Install NDK
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+           --channel=3 \
+           --install "ndk;29.0.13113456"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.13113456" >> $GITHUB_ENV
+
+      - name: Build library with 16KB page size
+        env:
+          PATH: ${{ env.PATH }}:$(go env GOPATH)/bin
+        run: |
+          mkdir -p assets data
+          bash gen_assets.sh download
+          cp -v data/*.dat assets/
+          gomobile init
+          go mod tidy
+          echo "Building .aar with 16KB page size support..."
+          gomobile bind -v -androidapi 21 \
+            -tags=netgo \
+            -ldflags="-s -w -extldflags=-Wl,-z,max-page-size=16384" \
+            -o build_output/libv2ray*r ./
+
+      - name: Upload artifact to workflow summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: libv2ray
+          path: build_output/libv2ray*r
+
+      - name: Create GitHub Release and upload .aar
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "AndroidLibXrayLite Build #${{ github.run_number }}"
+          body: |
+            🚀 Automated build of AndroidLibXrayLite
+            - ✅ Built with NDK r28c (28.2.13676358)
+            - 🧩 16KB page size support
+            - 🕓 Triggered by: ${{ github.event_name }}
+          files: build_output/libv2ray*r
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

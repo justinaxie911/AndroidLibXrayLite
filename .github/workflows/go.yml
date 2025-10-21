@@ -14,52 +14,45 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
-      - name: Setup Golang
-        uses: actions/setup-go@v5.4.0
+      - name: Setup Go 1.22
+        uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version: '1.22'
 
-      - name: Install gomobile
+      - name: Setup Android SDK + NDK (r28c)
+        uses: android-actions/setup-android@v3
+        with:
+          sdk-version: '34'
+          ndk-version: '28.2.13676358'
+
+      - name: Install gomobile & gobind
         run: |
           go install golang.org/x/mobile/cmd/gomobile@latest
-          export PATH=$PATH:~/go/bin
+          go install golang.org/x/mobile/cmd/gobind@latest
+          export PATH=$PATH:$(go env GOPATH)/bin
+          gomobile init
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3.2.0
-        with:
-           log-accepted-android-sdk-licenses: false
-           cmdline-tools-version: '12266719'
-           packages: 'platforms;android-35 build-tools;35.0.0 platform-tools'
-
-      - name: Install NDK
-        run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-           --channel=3 \
-           --install "ndk;29.0.13113456"
-          echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.13113456" >> $GITHUB_ENV
+      - name: Go modules tidy
+        run: go mod tidy
 
       - name: Build library with 16KB page size
         env:
           PATH: ${{ env.PATH }}:$(go env GOPATH)/bin
         run: |
           mkdir -p build_output
-          bash gen_assets.sh download
-          cp -v data/*.dat assets/
-          gomobile init
-          go mod tidy
           echo "Building .aar with 16KB page size support..."
           gomobile bind -v -androidapi 21 \
             -tags=netgo \
             -ldflags="-s -w -extldflags=-Wl,-z,max-page-size=16384" \
-            -o build_output/libv2ray*r ./
+            -o build_output/AndroidLibXrayLite.aar ./
 
       - name: Upload artifact to workflow summary
         uses: actions/upload-artifact@v4
         with:
-          name: libv2ray
-          path: build_output/libv2ray*r
+          name: AndroidLibXrayLite-AAR
+          path: build_output/AndroidLibXrayLite.aar
 
       - name: Create GitHub Release and upload .aar
         uses: softprops/action-gh-release@v2
@@ -71,6 +64,6 @@ jobs:
             - ✅ Built with NDK r28c (28.2.13676358)
             - 🧩 16KB page size support
             - 🕓 Triggered by: ${{ github.event_name }}
-          files: build_output/libv2ray*r
+          files: build_output/AndroidLibXrayLite.aar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
